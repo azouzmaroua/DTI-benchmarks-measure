@@ -1,0 +1,19 @@
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.md    text eol=lf
+*.tex   text eol=lf
+*.bib   text eol=lf
+*.csv   text eol=lf
+*.txt   text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.cfg   text eol=lf
+
+*.npy   binary
+*.npz   binary
+*.pt    binary
+*.pth   binary
+*.zip   binary
+*.pdf   binary
+*.png   binary
