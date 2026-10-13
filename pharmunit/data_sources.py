@@ -14,7 +14,6 @@ GENERATED = ("cold_drug", "cold_target", "cold_pair")
 
 ALL_PROTOCOLS = ("random", "cold", "cluster") + GENERATED
 
-
 @dataclass(frozen=True)
 class Resolved:
     dataset: str
@@ -33,12 +32,10 @@ class Resolved:
             "split_mode": self.split_mode,
         }
 
-
 def available(dataset: str) -> tuple[str, ...]:
     if dataset not in SHIPPED:
         raise KeyError(f"unknown dataset {dataset!r}; expected one of {sorted(SHIPPED)}")
     return SHIPPED[dataset] + GENERATED
-
 
 def resolve(dataset: str, protocol: str, root: str = DATASETS_ROOT) -> Resolved:
     dataset = dataset.lower()
@@ -69,8 +66,8 @@ def resolve(dataset: str, protocol: str, root: str = DATASETS_ROOT) -> Resolved:
         for p in (src, test):
             if not p.exists():
                 raise FileNotFoundError(p)
-        return Resolved(dataset, protocol, str(src), "", str(test), "given_holdout",
-                        note="val held out of source_train; target_train unused "
+        return Resolved(dataset, protocol, str(src), "", str(test), "random",
+                        note="carve val out of source_train; target_train unused "
                              "(no domain adaptation in this model)")
 
     sub = base / protocol
@@ -79,7 +76,6 @@ def resolve(dataset: str, protocol: str, root: str = DATASETS_ROOT) -> Resolved:
         if not p.exists():
             raise FileNotFoundError(p)
     return Resolved(dataset, protocol, str(tr), str(va), str(te), "given")
-
 
 def describe_grid() -> str:
     lines = [f"{'dataset':<11} {'protocol':<12} {'source':<10} split_mode"]

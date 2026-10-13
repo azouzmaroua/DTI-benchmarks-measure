@@ -28,32 +28,30 @@ ATOM_VOCAB: tuple[str, ...] = (
 _ATOM_INDEX: dict[str, int] = {s: i for i, s in enumerate(ATOM_VOCAB)}
 
 FUNCTIONAL_SMARTS: tuple[tuple[str, str], ...] = (
-    ("sulfonamide",    "[SX4](=O)(=O)[NX3]"),
-    ("sulfonate",      "[SX4](=O)(=O)[OX2H1,OX1-]"),
-    ("phosphate",      "[PX4](=O)([OX2H1,OX1-])[OX2H1,OX1-]"),
-    ("amide",          "[NX3][CX3](=[OX1])"),
-    ("carboxyl",       "[CX3](=O)[OX2H1,OX1-]"),
-    ("ester",          "[CX3](=O)[OX2][CX4]"),
-    ("carbamate",      "[NX3][CX3](=O)[OX2]"),
-    ("urea",           "[NX3][CX3](=O)[NX3]"),
-    ("guanidine",      "[NX3][CX3](=[NX2,NX3+])[NX3]"),
-    ("nitro",          "[NX3](=O)=O"),
-    ("nitrile",        "[CX2]#[NX1]"),
-    ("aldehyde",       "[CX3H1](=O)"),
-    ("ketone",         "[#6][CX3](=O)[#6]"),
-    ("ether",          "[OX2]([CX4])[CX4]"),
-    ("hydroxyl",       "[OX2H1][CX4]"),
-    ("phenol_oh",      "[OX2H1][c]"),
-    ("primary_amine",  "[NX3;H2][CX4]"),
-    ("secondary_amine","[NX3;H1]([CX4])[CX4]"),
-    ("tertiary_amine", "[NX3]([CX4])([CX4])[CX4]"),
-    ("thiol",          "[SX2H1][CX4]"),
-    ("halide",         "[F,Cl,Br,I]"),
+    ("sulfonamide",     "[SX4](=O)(=O)[NX3]"),
+    ("sulfonate",       "[SX4](=O)(=O)[OX2H1,OX1-]"),
+    ("phosphate",       "[PX4](=O)([OX2H1,OX1-])[OX2H1,OX1-]"),
+    ("amide",           "[NX3][CX3](=[OX1])"),
+    ("carboxyl",        "[CX3](=O)[OX2H1,OX1-]"),
+    ("ester",           "[CX3](=O)[OX2][CX4]"),
+    ("carbamate",       "[NX3][CX3](=O)[OX2]"),
+    ("urea",            "[NX3][CX3](=O)[NX3]"),
+    ("guanidine",       "[NX3][CX3](=[NX2,NX3+])[NX3]"),
+    ("nitro",           "[NX3](=O)=O"),
+    ("nitrile",         "[CX2]#[NX1]"),
+    ("aldehyde",        "[CX3H1](=O)"),
+    ("ketone",          "[#6][CX3](=O)[#6]"),
+    ("ether",           "[OX2]([CX4])[CX4]"),
+    ("hydroxyl",        "[OX2H1][CX4]"),
+    ("phenol_oh",       "[OX2H1][c]"),
+    ("primary_amine",   "[NX3;H2][CX4]"),
+    ("secondary_amine", "[NX3;H1]([CX4])[CX4]"),
+    ("tertiary_amine",  "[NX3]([CX4])([CX4])[CX4]"),
+    ("thiol",           "[SX2H1][CX4]"),
+    ("halide",          "[F,Cl,Br,I]"),
 )
 
-
 _FEATURE_FACTORY: Optional[ChemicalFeatures.MolChemicalFeatureFactory] = None
-
 
 def _feature_factory() -> ChemicalFeatures.MolChemicalFeatureFactory:
     global _FEATURE_FACTORY
@@ -61,7 +59,6 @@ def _feature_factory() -> ChemicalFeatures.MolChemicalFeatureFactory:
         fdef = os.path.join(RDConfig.RDDataDir, "BaseFeatures.fdef")
         _FEATURE_FACTORY = ChemicalFeatures.BuildFeatureFactory(fdef)
     return _FEATURE_FACTORY
-
 
 def _atom_pharm_types(mol: Chem.Mol) -> np.ndarray:
     n_atoms = mol.GetNumAtoms()
@@ -91,7 +88,6 @@ def _atom_pharm_types(mol: Chem.Mol) -> np.ndarray:
             out[a, PHARM_INDEX["None"]] = 1.0
     return out
 
-
 def _atom_basic_features(mol: Chem.Mol) -> np.ndarray:
     n_atoms = mol.GetNumAtoms()
     d = len(ATOM_VOCAB) + 5
@@ -106,10 +102,8 @@ def _atom_basic_features(mol: Chem.Mol) -> np.ndarray:
         out[i, len(ATOM_VOCAB) + 4] = float(a.GetTotalNumHs())
     return out
 
-
 def atom_feature_dim() -> int:
     return len(ATOM_VOCAB) + 5 + len(PHARM_FAMILIES)
-
 
 def _fused_ring_systems(mol: Chem.Mol) -> list[set[int]]:
     rings = [set(r) for r in Chem.GetSymmSSSR(mol)]
@@ -126,7 +120,6 @@ def _fused_ring_systems(mol: Chem.Mol) -> list[set[int]]:
         systems = keep
     return systems
 
-
 def _functional_group_units(mol: Chem.Mol, forbidden: set[int]) -> list[set[int]]:
     used: set[int] = set()
     units: list[set[int]] = []
@@ -141,7 +134,6 @@ def _functional_group_units(mol: Chem.Mol, forbidden: set[int]) -> list[set[int]
             units.append(m)
             used |= m
     return units
-
 
 def _linker_units(mol: Chem.Mol, assigned: set[int]) -> list[set[int]]:
     remaining = [i for i in range(mol.GetNumAtoms()) if i not in assigned]
@@ -168,7 +160,6 @@ def _linker_units(mol: Chem.Mol, assigned: set[int]) -> list[set[int]]:
         comps.append(comp)
     return comps
 
-
 def partition_units(mol: Chem.Mol) -> list[set[int]]:
     units: list[set[int]] = []
     assigned: set[int] = set()
@@ -192,7 +183,6 @@ def partition_units(mol: Chem.Mol) -> list[set[int]]:
         )
     return units
 
-
 @dataclass
 class DrugFeatures:
     smiles: str
@@ -202,7 +192,6 @@ class DrugFeatures:
     unit_pharm: np.ndarray
     n_atoms: int
     n_units: int
-
 
 def featurize_drug(smiles: str) -> Optional[DrugFeatures]:
     mol = Chem.MolFromSmiles(smiles)

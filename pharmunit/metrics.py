@@ -9,7 +9,6 @@ from sklearn.metrics import (
     average_precision_score,
 )
 
-
 @dataclass
 class MetricScores:
     auroc: float
@@ -18,7 +17,6 @@ class MetricScores:
     accuracy: float
     threshold: float
 
-
 def _tune_threshold(y_true: np.ndarray, y_prob: np.ndarray) -> float:
     prec, rec, thr = precision_recall_curve(y_true, y_prob)
     denom = np.where((prec + rec) > 0, prec + rec, 1.0)
@@ -26,7 +24,6 @@ def _tune_threshold(y_true: np.ndarray, y_prob: np.ndarray) -> float:
     if len(thr) == 0:
         return 0.5
     return float(thr[int(np.argmax(f1[:-1]))])
-
 
 def compute(y_true: Iterable[int], y_prob: Iterable[float],
             threshold: float | None = None) -> MetricScores:
@@ -42,7 +39,6 @@ def compute(y_true: Iterable[int], y_prob: Iterable[float],
         accuracy=float(accuracy_score(y_true, y_pred)),
         threshold=float(threshold),
     )
-
 
 def bootstrap_ci(y_true: np.ndarray, y_prob: np.ndarray, threshold: float,
                  n_boot: int = 1000, seed: int = 0) -> dict[str, tuple[float, float]]:
@@ -67,7 +63,6 @@ def bootstrap_ci(y_true: np.ndarray, y_prob: np.ndarray, threshold: float,
         return (float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5)))
 
     return {"auroc": ci(aurocs), "auprc": ci(auprcs), "f1": ci(f1s), "accuracy": ci(accs)}
-
 
 def as_dict(m: MetricScores) -> dict:
     return asdict(m)

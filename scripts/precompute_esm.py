@@ -11,10 +11,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-
 def _seq_hash(seq: str) -> str:
     return hashlib.sha1(seq.strip().upper().encode("ascii", errors="replace")).hexdigest()
-
 
 def _collect_sequences(pair_files: list[str]) -> list[str]:
     from pharmunit.dataset import load_pairs
@@ -31,7 +29,6 @@ def _collect_sequences(pair_files: list[str]) -> list[str]:
                 seen.add(seq)
                 seqs.append(seq)
     return seqs
-
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -86,7 +83,6 @@ def main() -> None:
     if cached < len(seqs):
         print("WARNING: cache is incomplete. Re-run this script to fill the gap; "
               "training will FileNotFoundError on the missing sequences.")
-
 
 if __name__ == "__main__":
     main()

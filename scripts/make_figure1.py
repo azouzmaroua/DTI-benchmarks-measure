@@ -5,13 +5,13 @@ import statistics
 from pathlib import Path
 
 import matplotlib
-matplotlib.use("Agg")
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parent.parent
 LABELS = {"human": "Human", "celegans": "C. elegans", "biosnap": "BioSNAP", "bindingdb": "BindingDB"}
 ORDER = ["human", "celegans", "biosnap", "bindingdb"]
-
+PURITY_COLOUR, LOOKUP_COLOUR = "#D55E00", "#0072B2"
 
 def main() -> None:
     d = json.loads((ROOT / "runs" / "entity_purity.json").read_text(encoding="utf-8"))
@@ -33,13 +33,16 @@ def main() -> None:
         pur = [data[ds][side][0] for ds in ORDER]
         look = [data[ds][side][1] for ds in ORDER]
         ax.bar([i - width / 2 for i in x], pur, width, label="single-class fraction",
-               color="0.72", edgecolor="0.25", linewidth=0.6)
+               color=PURITY_COLOUR, edgecolor="white", hatch="///", linewidth=0.4)
         ax.bar([i + width / 2 for i in x], look, width, label="lookup AUROC",
-               color="0.32", edgecolor="0.15", linewidth=0.6)
+               color=LOOKUP_COLOUR, edgecolor=LOOKUP_COLOUR, linewidth=0.6)
         ax.axhline(0.5, color="0.1", linestyle=(0, (4, 3)), linewidth=0.8)
         ax.set_title(f"{side} side", fontsize=9)
         ax.set_xticks(list(x))
         ax.set_xticklabels([LABELS[ds] for ds in ORDER], fontsize=8, rotation=20, ha="right")
+        for tick, ds in zip(ax.get_xticklabels(), ORDER):
+            if ds == "celegans":
+                tick.set_fontstyle("italic")
         ax.set_ylim(0, 1.05)
         ax.tick_params(labelsize=8)
         for spine in ("top", "right"):
@@ -58,14 +61,13 @@ def main() -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, bbox_inches="tight")
     fig.savefig(out.with_suffix(".png"), dpi=300, bbox_inches="tight")
-
+    plt.show()
     print(f"wrote {out.relative_to(ROOT)} and .png")
     for ds in ORDER:
         dp, dl = data[ds]["drug"]
         tp, tl = data[ds]["target"]
         print(f"  {LABELS[ds]:<11} drug purity {dp:.4f} lookup {dl:.4f} | "
               f"target purity {tp:.4f} lookup {tl:.4f}")
-
 
 if __name__ == "__main__":
     main()

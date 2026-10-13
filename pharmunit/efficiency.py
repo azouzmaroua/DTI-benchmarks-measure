@@ -12,12 +12,9 @@ import torch.nn as nn
 
 from .config import Config
 
-
 SELECTION_PREFIXES = (
-    "pwirc", "bsirc", "atom_token_scorer", "residue_token_scorer",
-    "gamma_proj_d", "gamma_proj_p", "gamma_mlp",
+    "compress_drug", "compress_protein",
 )
-
 
 def count_parameters(model: nn.Module) -> dict[str, int]:
     total = 0
@@ -36,7 +33,6 @@ def count_parameters(model: nn.Module) -> dict[str, int]:
         "overhead_pct": round(100.0 * selection / max(total - selection, 1), 2),
     }
 
-
 def measure_flops(model: nn.Module, batch, device: torch.device) -> Optional[int]:
     try:
         from torch.utils.flop_counter import FlopCounterMode
@@ -51,7 +47,6 @@ def measure_flops(model: nn.Module, batch, device: torch.device) -> Optional[int
     except Exception:
         return None
     return int(counter.get_total_flops())
-
 
 def measure_latency(
     model: nn.Module,
@@ -90,7 +85,6 @@ def measure_latency(
         "repeats": repeats,
     }
 
-
 def measure_peak_memory(model: nn.Module, batch, device: torch.device) -> Optional[float]:
     if device.type != "cuda":
         return None
@@ -102,12 +96,14 @@ def measure_peak_memory(model: nn.Module, batch, device: torch.device) -> Option
     torch.cuda.synchronize()
     return round(torch.cuda.max_memory_allocated(device) / (1024 ** 2), 3)
 
-
 @dataclass
 class EfficiencyReport:
     tag: str
-    score_policy: str
-    selection: str
+    dataset: str
+    split_mode: str
+    compress_enabled: bool
+    compress_retention: str
+    compress_recompress: str
     keep_drug: float
     keep_protein: float
     params_total: int
@@ -122,7 +118,6 @@ class EfficiencyReport:
     device: str
     batch_size: int
 
-
 def profile(model: nn.Module, batch, cfg: Config, device: torch.device,
             tag: str = "") -> EfficiencyReport:
     params = count_parameters(model)
@@ -131,8 +126,11 @@ def profile(model: nn.Module, batch, cfg: Config, device: torch.device,
     mem = measure_peak_memory(model, batch, device)
     return EfficiencyReport(
         tag=tag or cfg.tag,
-        score_policy=cfg.score_policy,
-        selection=cfg.selection,
+        dataset=cfg.dataset,
+        split_mode=cfg.split_mode,
+        compress_enabled=cfg.compress_enabled,
+        compress_retention=cfg.compress_retention,
+        compress_recompress=cfg.compress_recompress,
         keep_drug=cfg.keep_drug,
         keep_protein=cfg.keep_protein,
         params_total=params["total"],
@@ -147,7 +145,6 @@ def profile(model: nn.Module, batch, cfg: Config, device: torch.device,
         device=str(device),
         batch_size=lat["batch_size"],
     )
-
 
 def compare(reports: list[EfficiencyReport], reference_tag: str) -> list[dict]:
     ref = next((r for r in reports if r.tag == reference_tag), None)
@@ -169,7 +166,6 @@ def compare(reports: list[EfficiencyReport], reference_tag: str) -> list[dict]:
             "reference": reference_tag,
         })
     return rows
-
 
 def write_report(rows: list[dict], out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)

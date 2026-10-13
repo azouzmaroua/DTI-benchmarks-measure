@@ -8,8 +8,8 @@ from .config import Config
 from .dataset import Batch
 from .scorers import AtomEncoder, unit_mean_pool
 
-
 class UnitEncoder(nn.Module):
+
     def __init__(self, d_hidden: int, use_pharm: bool, n_pharm: int = 7):
         super().__init__()
         self.use_pharm = use_pharm
@@ -20,8 +20,8 @@ class UnitEncoder(nn.Module):
         g = torch.cat([pooled, unit_pharm], dim=-1) if self.use_pharm else pooled
         return self.proj(g) * unit_mask.unsqueeze(-1).to(pooled.dtype)
 
-
 class SegmentEncoder(nn.Module):
+
     def __init__(self, esm_dim: int, segment_len: int, d_hidden: int, use_pocket: bool):
         super().__init__()
         self.segment_len = segment_len
@@ -39,8 +39,8 @@ class SegmentEncoder(nn.Module):
             e = torch.cat([e, p], dim=-1)
         return self.proj(e) * seg_mask.unsqueeze(-1).to(e.dtype)
 
-
 class CrossAttentionBlock(nn.Module):
+
     def __init__(self, d: int, n_heads: int, dropout: float = 0.1):
         super().__init__()
         self.a_dp = nn.MultiheadAttention(d, n_heads, dropout=dropout, batch_first=True)
@@ -58,11 +58,9 @@ class CrossAttentionBlock(nn.Module):
         zp = self.ln_p1(zp + torch.nan_to_num(p_upd))
         return self.ln_d2(zd + self.ff_d(zd)), self.ln_p2(zp + self.ff_p(zp))
 
-
 def masked_mean(x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     m = mask.unsqueeze(-1).to(x.dtype)
     return (x * m).sum(dim=1) / m.sum(dim=1).clamp(min=1.0)
-
 
 class PharmUnitDTI(nn.Module):
     def __init__(self, cfg: Config, atom_dim: int):
@@ -118,10 +116,8 @@ class PharmUnitDTI(nn.Module):
             return logit, {"drug": sd, "protein": sp}
         return logit
 
-
 def bce_loss(logit: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     return nn.functional.binary_cross_entropy_with_logits(logit, y)
-
 
 def total_loss(logit, y, stats) -> tuple[torch.Tensor, dict]:
     task = bce_loss(logit, y)

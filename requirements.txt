@@ -1,12 +1,19 @@
+# Core
 torch>=2.1
 numpy>=1.24
 pandas>=2.0
 scikit-learn>=1.3
 tqdm>=4.66
 
+# Chemistry
 rdkit>=2023.9.5
 
+# Protein features (optional but recommended)
+# fair-esm is only needed when running scripts/precompute_esm.py.
+# You can omit it if you already have cached embeddings on disk.
 fair-esm>=2.0.0
 
+# For statistics / plots (optional)
 scipy>=1.11
 matplotlib>=3.7
+pytest>=7.4

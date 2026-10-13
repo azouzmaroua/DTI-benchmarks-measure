@@ -4,6 +4,7 @@ import argparse
 import contextlib
 import io
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -23,7 +24,7 @@ from pharmunit.data import prepare_splits
 from pharmunit.protein_features import sequence_hash
 
 RUNS = ROOT / "runs"
-ESM_CACHE = ROOT / "cache" / "esm"
+ESM_CACHE = Path(os.environ.get("PHARMUNIT_ESM_CACHE", ROOT / "cache" / "esm"))
 ECFP_BITS, ECFP_RADIUS = 1024, 2
 AA = "ACDEFGHIKLMNPQRSTVWY"
 
@@ -32,7 +33,6 @@ CONTRASTS = [
     ("C. elegans random vs cold-target", "celegans", "random", "cold_target"),
     ("Human cold-drug vs cold-target", "human", "cold_drug", "cold_target"),
 ]
-
 
 def ecfp_table(smiles: list[str]) -> dict[str, np.ndarray]:
     from rdkit import Chem, RDLogger
@@ -45,7 +45,6 @@ def ecfp_table(smiles: list[str]) -> dict[str, np.ndarray]:
         if mol is not None:
             out[s] = np.asarray(gen.GetFingerprintAsNumPy(mol), dtype=np.float32)
     return out
-
 
 def composition_table(seqs: list[str]) -> dict[str, np.ndarray]:
     idx = {a: i for i, a in enumerate(AA)}
@@ -64,7 +63,6 @@ def composition_table(seqs: list[str]) -> dict[str, np.ndarray]:
         out[s] = v
     return out
 
-
 def esm_mean_table(seqs: list[str], dataset: str) -> dict[str, np.ndarray] | None:
     uniq = sorted(set(seqs))
     store = RUNS / f"esm_mean_{dataset}.npz"
@@ -78,8 +76,8 @@ def esm_mean_table(seqs: list[str], dataset: str) -> dict[str, np.ndarray] | Non
     missing = [s for s in uniq if not (ESM_CACHE / f"{sequence_hash(s)}.npy").exists()]
     if missing:
         print(f"      esm_mlp unavailable for {dataset}: {len(missing)} of {len(uniq)} "
-              f"sequences are absent from {ESM_CACHE}. Run scripts/precompute_esm.py "
-              f"(see GPU_RUNBOOK.md); this is the only GPU-bound step.")
+              f"sequences are absent from {ESM_CACHE}. Run scripts/precompute_esm.py; "
+              f"this is the only GPU-bound step.")
         return None
 
     print(f"      pooling ESM embeddings for {len(uniq)} sequences (one-time) ...")
@@ -87,20 +85,19 @@ def esm_mean_table(seqs: list[str], dataset: str) -> dict[str, np.ndarray] | Non
     for s in uniq:
         h = sequence_hash(s)
         v = np.load(ESM_CACHE / f"{h}.npy").mean(axis=0).astype(np.float32)
-        out[s], _ = v, hashes.append(h)
+        out[s] = v
+        hashes.append(h)
         vecs.append(v)
     store.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(store, keys=np.array(hashes), vecs=np.stack(vecs))
     print(f"      cached pooled means -> {store.name}")
     return out
 
-
 def build_matrix(df: pd.DataFrame, drug_tab: dict, prot_tab: dict):
     d, t, y = df["drug"].to_numpy(), df["target"].to_numpy(), df["label"].to_numpy()
     keep = [i for i in range(len(df)) if d[i] in drug_tab and t[i] in prot_tab]
     X = np.stack([np.concatenate([drug_tab[d[i]], prot_tab[t[i]]]) for i in keep])
     return X, y[keep], len(df) - len(keep)
-
 
 def _torch_mlp(Xtr, ytr, Xva, yva, Xte, seed: int) -> np.ndarray:
     import torch
@@ -143,9 +140,7 @@ def _torch_mlp(Xtr, ytr, Xva, yva, Xte, seed: int) -> np.ndarray:
         net.load_state_dict(best_state)
     net.eval()
     with torch.no_grad():
-        import torch as _t
-        return _t.sigmoid(net(xe).squeeze(1)).cpu().numpy()
-
+        return torch.sigmoid(net(xe).squeeze(1)).cpu().numpy()
 
 def fit_predict(name, Xtr, ytr, Xva, yva, Xte, seed: int) -> np.ndarray:
     if name == "lr":
@@ -162,7 +157,6 @@ def fit_predict(name, Xtr, ytr, Xva, yva, Xte, seed: int) -> np.ndarray:
         return _torch_mlp(Xtr, ytr, Xva, yva, Xte, seed)
     raise ValueError(name)
 
-
 def load_reference() -> dict:
     f = RUNS / "entity_purity.json"
     if not f.exists():
@@ -171,7 +165,6 @@ def load_reference() -> dict:
     return {cell: {int(r["seed"]): float(r["val_fixed"]) for r in rows
                    if r.get("val_fixed") is not None}
             for cell, rows in payload.get("cells", {}).items()}
-
 
 def load_incumbent() -> dict:
     f = RUNS / "ladder_manifest.json"
@@ -190,7 +183,6 @@ def load_incumbent() -> dict:
             out[cell] = per
     return out
 
-
 def paired(diffs: np.ndarray) -> dict:
     n = len(diffs)
     mean = float(diffs.mean())
@@ -200,7 +192,6 @@ def paired(diffs: np.ndarray) -> dict:
     t = float(stats.t.ppf(0.975, n - 1))
     _, p = stats.ttest_1samp(diffs, 0.0)
     return {"n": n, "mean": mean, "lo": mean - t * se, "hi": mean + t * se, "p": float(p)}
-
 
 def _bootstrap_auroc(y, p, n_boot: int, seed: int = 0) -> tuple[float, float]:
     rng = np.random.default_rng(seed)
@@ -214,7 +205,6 @@ def _bootstrap_auroc(y, p, n_boot: int, seed: int = 0) -> tuple[float, float]:
     if len(vals) < 2:
         return float("nan"), float("nan")
     return float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5))
-
 
 def run_cell(dataset: str, split_mode: str, seeds, models, given_dir=None) -> dict:
     if given_dir == "raw":
@@ -230,10 +220,13 @@ def run_cell(dataset: str, split_mode: str, seeds, models, given_dir=None) -> di
               test_file=str(files["test"]), scorer_protein="esm",
               p2rank_dir="", split_mode=("given" if given_dir else split_mode))
 
-    with contextlib.redirect_stdout(io.StringIO()):
-        tr, va, te, _ = prepare_splits(Config(seed=0, **kw), seed=0)
-    pool = pd.concat([tr, va, te], ignore_index=True)
-    drug_tab = ecfp_table(pool["drug"].tolist())
+    parts = []
+    for s in seeds:
+        with contextlib.redirect_stdout(io.StringIO()):
+            tr, va, te, _ = prepare_splits(Config(seed=s, **kw), seed=s)
+        parts += [tr, va, te]
+    pool = pd.concat(parts, ignore_index=True)
+    drug_tab = ecfp_table(pool["drug"].drop_duplicates().tolist())
     comp_tab = composition_table(pool["target"].tolist())
     esm_tab = esm_mean_table(pool["target"].tolist(), dataset) if "esm_mlp" in models else None
 
@@ -260,7 +253,6 @@ def run_cell(dataset: str, split_mode: str, seeds, models, given_dir=None) -> di
         print(f"      WARNING: {dropped_total} row(s) unfeaturisable and dropped; the "
               f"model AUROC and the reference AUROC then describe different rows.")
     return per_seed, preds
-
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
@@ -379,7 +371,6 @@ def main() -> None:
                                "models": a.models, "seeds": a.seeds}, indent=2),
                    encoding="utf-8")
     print(f"\nwrote {out}")
-
 
 if __name__ == "__main__":
     main()

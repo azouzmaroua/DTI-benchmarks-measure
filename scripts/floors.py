@@ -17,11 +17,9 @@ from pharmunit.data import prepare_splits
 
 PSEUDO = 5.0
 
-
 def _entity_rate(train, col, prior):
     g = train.groupby(col)["label"].agg(["sum", "size"])
     return ((g["sum"] + prior * PSEUDO) / (g["size"] + PSEUDO)).to_dict()
-
 
 def floors_for_split(train, test) -> dict:
     prior = float(train["label"].mean())
@@ -45,7 +43,6 @@ def floors_for_split(train, test) -> dict:
     out["drug_collapsed"] = bool(np.allclose(d, d[0]))
     out["protein_collapsed"] = bool(np.allclose(p, p[0]))
     return out
-
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Per-seed trivial floors")
@@ -103,7 +100,6 @@ def main() -> None:
          "mean_floor": round(float(np.mean(floors)), 4) if floors else None},
         indent=2), encoding="utf-8")
     print(f"\nwrote {fp}")
-
 
 if __name__ == "__main__":
     main()

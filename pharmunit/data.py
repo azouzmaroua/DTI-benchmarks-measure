@@ -9,7 +9,6 @@ from .config import Config
 from .dataset import load_pairs
 from .splits import make_split, audit_given_splits, summarize_split
 
-
 @dataclass
 class SplitReport:
     mode: str
@@ -34,7 +33,6 @@ class SplitReport:
                          f"({a.get('test_pairs_in_train_pct', 0)}%)")
         return "\n".join(lines)
 
-
 def clean_pairs(df: pd.DataFrame, deduplicate: bool = True,
                 drop_contradictory: bool = True) -> tuple[pd.DataFrame, int, int]:
     n_contra = 0
@@ -53,7 +51,6 @@ def clean_pairs(df: pd.DataFrame, deduplicate: bool = True,
         n_dup = before - len(df)
 
     return df.reset_index(drop=True), n_dup, n_contra
-
 
 def prepare_splits(cfg: Config, seed: int | None = None
                    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, SplitReport]:
@@ -91,7 +88,6 @@ def prepare_splits(cfg: Config, seed: int | None = None
                   pool.loc[list(te_i)].reset_index(drop=True))
     report.leakage_audit = verify_coldness(tr, va, te, cfg.split_mode)
     return tr, va, te, report
-
 
 def verify_coldness(train: pd.DataFrame, val: pd.DataFrame, test: pd.DataFrame,
                     mode: str, strict: bool = True) -> dict:

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 import torch
 import torch.nn as nn
-
 
 @dataclass
 class CompressionStats:
@@ -14,7 +14,6 @@ class CompressionStats:
     n_rounds: int = 0
     enabled: bool = True
 
-
 def _masked_moments(x: torch.Tensor, m: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     mf = m.to(x.dtype)
     cnt = mf.sum(dim=1, keepdim=True).clamp(min=1.0)
@@ -22,8 +21,8 @@ def _masked_moments(x: torch.Tensor, m: torch.Tensor) -> tuple[torch.Tensor, tor
     var = (((x - mean) * mf) ** 2).sum(dim=1, keepdim=True) / cnt
     return mean, var
 
-
 class ContextRecompressor(nn.Module):
+
     def __init__(self, d: int, dropout: float = 0.1):
         super().__init__()
         self.net = nn.Sequential(
@@ -37,8 +36,8 @@ class ContextRecompressor(nn.Module):
         h = self.net(torch.cat([v, ctx.expand_as(v)], dim=-1))
         return self.norm(v + h) * mf
 
-
 class AttnRecompressor(nn.Module):
+
     def __init__(self, d: int, n_heads: int = 4, dropout: float = 0.1):
         super().__init__()
         self.attn = nn.MultiheadAttention(d, n_heads, dropout=dropout, batch_first=True)
@@ -49,8 +48,8 @@ class AttnRecompressor(nn.Module):
         upd = torch.nan_to_num(upd, nan=0.0)
         return self.norm(v + upd) * m.unsqueeze(-1).to(v.dtype)
 
-
 class RecursiveCompressor(nn.Module):
+
     def __init__(
         self,
         d: int,
@@ -111,7 +110,6 @@ class RecursiveCompressor(nn.Module):
                     f"gate -> 1, sigma'(.) -> 0, and the scorer receives ~4x less "
                     f"gradient. Use 0.95 for near-full initial retention.")
             self.tau = nn.Parameter(torch.full((rounds,), _z_for_keep(ik)))
-
 
     def forward(
         self,
@@ -181,9 +179,7 @@ class RecursiveCompressor(nn.Module):
         return (f"rounds={self.rounds}, retention={self.retention}, "
                 f"recompress={self.recompress_mode}, budget_weight={self.budget_weight}")
 
-
 def _z_for_keep(keep_frac: float) -> float:
-    import math
     p = min(max(1.0 - keep_frac, 1e-4), 1 - 1e-4)
     a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02,
          1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00]

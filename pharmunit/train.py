@@ -20,7 +20,6 @@ from .dataset import DTIDataset, make_collate, infer_atom_dim
 from .metrics import compute as compute_metrics, as_dict
 from .model import PharmUnitDTI, total_loss
 
-
 def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -28,7 +27,6 @@ def set_seed(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
 
 def env_record() -> dict:
     return {
@@ -43,7 +41,6 @@ def env_record() -> dict:
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
-
 def _loader(df, cfg: Config, shuffle: bool, caches: tuple[dict, dict]) -> DataLoader:
     ds = DTIDataset(df, esm_cache_dir=Path(cfg.esm_cache_dir),
                     p2rank_cache_dir=Path(cfg.p2rank_dir) if cfg.p2rank_dir else None,
@@ -51,7 +48,6 @@ def _loader(df, cfg: Config, shuffle: bool, caches: tuple[dict, dict]) -> DataLo
                     drug_cache=caches[0], protein_cache=caches[1])
     return DataLoader(ds, batch_size=cfg.batch_size, shuffle=shuffle,
                       num_workers=cfg.num_workers, collate_fn=make_collate(cfg.segment_len))
-
 
 @torch.no_grad()
 def evaluate(model, loader, device) -> tuple[np.ndarray, np.ndarray, dict]:
@@ -69,12 +65,10 @@ def evaluate(model, loader, device) -> tuple[np.ndarray, np.ndarray, dict]:
            "keep_protein": float(np.mean(keep_p)) if keep_p else 1.0}
     return np.concatenate(ys), np.concatenate(probs), aux
 
-
 def _to(batch, device):
     for f in batch.__dataclass_fields__:
         setattr(batch, f, getattr(batch, f).to(device))
     return batch
-
 
 def run(cfg: Config, seed: int) -> dict:
     cfg.validate()
@@ -148,7 +142,6 @@ def run(cfg: Config, seed: int) -> dict:
     print(json.dumps(result["test"], indent=2))
     return result
 
-
 def main() -> None:
     ap = argparse.ArgumentParser(description="Train PharmUnit-DTI")
     ap.add_argument("--tag", default="full")
@@ -203,7 +196,6 @@ def main() -> None:
     aurocs = [r["test"]["auroc"] for r in results]
     print(f"\n{a.tag}: test AUROC {np.mean(aurocs):.4f} +/- {np.std(aurocs):.4f} "
           f"over {len(aurocs)} seed(s)")
-
 
 if __name__ == "__main__":
     main()

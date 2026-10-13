@@ -5,7 +5,6 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
-
 def _stratified_pair_split(
     df: pd.DataFrame,
     val_frac: float,
@@ -28,7 +27,6 @@ def _stratified_pair_split(
         joined = np.concatenate(parts[name]) if parts[name] else np.array([], dtype=int)
         out.append(joined[rng.permutation(len(joined))])
     return out[0], out[1], out[2]
-
 
 def _by_entity(
     df: pd.DataFrame,
@@ -80,7 +78,6 @@ def _by_entity(
         out.append(df.index[df[key].isin(members[fold])].to_numpy())
     return out[0], out[1], out[2]
 
-
 def check_fold_balance(
     df: pd.DataFrame,
     folds: dict[str, np.ndarray],
@@ -117,7 +114,6 @@ def check_fold_balance(
         print(msg)
     report["ok"] = not offenders
     return report
-
 
 def _cold_pair(
     df: pd.DataFrame,
@@ -159,7 +155,6 @@ def _cold_pair(
     train_idx = train_pool[perm[n_val:]]
     return train_idx, val_idx, df.index[is_test].to_numpy()
 
-
 def make_split(
     df: pd.DataFrame,
     mode: str,
@@ -183,7 +178,6 @@ def make_split(
 
     check_fold_balance(df, {"train": tr, "val": va, "test": te})
     return tr, va, te
-
 
 def audit_given_splits(
     train: pd.DataFrame,
@@ -219,14 +213,13 @@ def audit_given_splits(
             f"{va_leak} of {len(va)} val pairs likewise. "
             f"{contradictory} pair(s) carry contradictory labels.\n"
             f"Results from split_mode='given' are NOT a generalisation measurement.\n"
-            f"Use split_mode in {{random, cold_drug, cold_target, cold_pair}}, which "
+            f"Use split_mode in {{random, cold_drug, cold_target, cold_pair}}, which\n"
             f"deduplicate before splitting.\n{'!' * 74}\n"
         )
         if strict:
             raise ValueError(msg)
         print(msg)
     return audit
-
 
 def summarize_split(
     df: pd.DataFrame,

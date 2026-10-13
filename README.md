@@ -1,139 +1,119 @@
-# DTI-benchmarks-measure
+# PharmUnit-DTI
 
-**PharmUnit-DTI: a benchmark audit for drug–target interaction prediction**
+Code for a measurement study of four public drug–target interaction (DTI)
+benchmarks — Human, *C. elegans*, BioSNAP, and BindingDB — and for
+**PharmUnit-DTI**, a cross-attention DTI model with pharmacophore-informed
+chemical-unit selection and learnable recursive compression.
 
-This repository contains the code for an audit of common drug–target interaction
-(DTI) benchmarks (Human, *C. elegans*, BioSNAP, BindingDB). It includes:
+**Status: research code, manuscript in preparation. Nothing here has been peer
+reviewed.**
 
-- **PharmUnit-DTI**, a reference model that encodes drugs as pharmacophore units and
-  proteins as ESM-2 residue segments, joined by bidirectional cross-attention, with
-  optional learned recursive token compression.
-- **Split construction and leakage checks** for random, cold-drug, cold-target and
-  cold-pair protocols. Every generated split is verified, and training stops if a
-  "cold" split leaks test entities into train.
-- **Trivial floors**: smoothed per-drug / per-target label-rate baselines that
-  measure how much of a benchmark score memorised entity identity alone can explain.
-- **Analysis scripts** for entity purity, edge-prior (degree-preserving permutation)
-  baselines, a second non-neural architecture, and calibration against published
-  DrugBAN numbers.
+## What the study measures
 
-Results, data and trained weights are not included. The scripts regenerate them.
+Three things, the first two of which require no trained model:
 
-## Repository layout
+1. **Whether the standard degree-based control can be computed at all.** A
+   permutation-derived edge prior can score a test pair only when both of its
+   entities appear in the training positive graph. Entity-disjoint evaluation
+   removes that support.
+2. **What a non-molecular predictor achieves.** An entity-frequency lookup
+   that uses no molecular structure, no protein sequence, and no learned
+   parameters.
+3. **How the resulting reference changes the reading of a trained model's
+   AUROC**, measured with the PharmUnit-DTI cross-attention model as the
+   instrument.
+
+## The model
 
 ```
-pharmunit/          core package
-  config.py         all hyper-parameters (dataclass Config)
-  data.py           loading, de-duplication, split preparation, coldness audit
-  data_sources.py   dataset/protocol resolution
-  splits.py         random / cold_drug / cold_target / cold_pair split generation
-  dataset.py        featurisation, Dataset and collate
-  drug_features.py  RDKit atom graph + pharmacophore units
-  protein_features.py  ESM-2 embedding cache lookup
-  scorers.py        token scorers and top-k gathering
-  compression.py    recursive token compressor
-  model.py          PharmUnitDTI model and loss
-  metrics.py, stats.py, efficiency.py
-  train.py          training entry point (python -m pharmunit.train)
-scripts/            analyses, baselines, tables and figures
-tests/              pytest suite
+SMILES  --RDKit-->  atoms + chemical-unit partition + pharmacophore histogram
+        --GCN-->    atom vectors --pool--> unit vectors [mean(atoms) | pharm]
+        --RecursiveCompressor--> kept units
+
+sequence --ESM-2 (frozen, cached)--> residues --segment pool--> segment vectors
+        --RecursiveCompressor--> kept segments
+
+kept units <-> kept segments --cross-attention--> pool, concat, classify
 ```
 
-## Installation
+The compression module applies R rounds of {re-encode → score → prune} with a
+learned per-round retention threshold, so the keep rate is an **output** of
+training rather than a hand-set constant. Three ablation rungs:
+`compress_enabled=False` (no selection), `rounds=1, retention='fixed'`
+(single-shot top-k, the baseline), and `rounds>1, retention='learned'`
+(the proposed method).
 
-Python 3.10+ is required.
+## Data provenance, and one caution
+
+`datasets/` and `data_raw/` contain third-party benchmark data, tracked in this
+repository so every number is reproducible from a fresh clone. They carry
+their original authors' terms. Layout:
+
+```
+datasets/<dataset>/<protocol>/{train,val,test}.csv   # DrugBAN format: SMILES,Protein,Y
+data_raw/{Human,Celegans}_{train,val,test}.txt        # whitespace TXT, for the raw audit
+```
+
+**Caution for anyone reusing the distributed files:** the released Human and
+*C. elegans* split files contain verbatim train–test pair overlap (13.7% and
+22.2% of test pairs respectively, measured by
+`scripts/published_split_audit.py --source raw`). Any result computed on those
+files as supplied is affected by direct pair memorisation. The pipeline in
+`pharmunit/data.py` pools, removes contradictory labels, deduplicates, and
+only then re-splits, which removes it.
+
+## Environment
 
 ```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows
 pip install -r requirements.txt
 ```
 
-The test suite also needs `pytest`. `scripts/extract_drugban_published.py` also needs `pymupdf`.
+`fair-esm` and a CUDA-capable GPU are needed only for the one-off ESM-2
+embedding cache build (`scripts/precompute_esm.py`).
 
-## Data
+## Reproducing the analysis
 
-Place the benchmark files as follows. These folders are git-ignored.
+Each script resolves paths from its own location, so it runs from any working
+directory.
 
-```
-datasets/
-  human/{random,cold}/{train,val,test}.csv
-  biosnap/random/{train,val,test}.csv
-  biosnap/cluster/{source_train,target_train,target_test}.csv
-  bindingdb/random/{train,val,test}.csv
-  bindingdb/cluster/{source_train,target_train,target_test}.csv
-  celegans/random/{train,val,test}.csv      # built by scripts/make_celegans_dataset.py
-data_raw/
-  Human_{train,val,test}.txt
-  Celegans_{train,val,test}.txt
-```
-
-- CSV files use the DrugBAN format, with columns `SMILES,Protein,Y`. The Human,
-  BioSNAP and BindingDB splits are those distributed with DrugBAN
-  (<https://github.com/peizhenbai/DrugBAN>).
-- TXT files are whitespace-separated, one `smiles sequence label` per line.
-
-Build the *C. elegans* CSV split from the raw files:
-
-```bash
-python scripts/make_celegans_dataset.py
-```
-
-### ESM-2 embeddings
-
-Protein features are read from a precomputed ESM-2 cache. The default location is
-`cache/esm`, or you can set `PHARMUNIT_ESM_CACHE`:
-
-```bash
-python scripts/precompute_esm.py --pair-file datasets/biosnap/random/*.csv --out-dir cache/esm
-```
-
-## Training
-
-```bash
-# shipped random split
-python -m pharmunit.train --dataset biosnap --protocol random --tag bs_random --seeds 0 1 2 3 4
-
-# split regenerated per seed from the pooled data, with a leakage check
-python -m pharmunit.train --dataset biosnap --split-mode cold_drug --tag bs_cold_drug --seeds 0 1 2 3 4
-
-# no-compression accuracy ceiling
-python -m pharmunit.train --dataset biosnap --split-mode cold_pair --no-compress --tag bs_ceiling
-```
-
-Each run writes `config.json`, `env.json`, `history.csv`, `split_report.txt`,
-`metrics.json` and `best.pt` to `runs/<tag>/seed<k>/`. Run
-`python -m pharmunit.train -h` for all options, including compression rounds,
-retention mode, budget weight and keep ratios.
-
-## Analyses
-
-All scripts run from the repository root and write to `runs/` by default.
-
-| Script | Purpose |
+| Output | Command |
 |---|---|
-| `floors.py` | Per-seed trivial floors (entity label-rate baselines) |
-| `entity_purity.py` | Single-class entity fractions and purity-only AUROC |
-| `purity_decomposition.py` | Decomposition of the purity signal across benchmarks |
-| `smoothing_sensitivity.py` | Sensitivity of the floors to the pseudo-count |
-| `edge_prior_comparison.py`, `edge_prior_domain.py` | Degree-preserving (XSwap) edge-prior baselines |
-| `published_split_audit.py` | Leakage audit of the published splits |
-| `reference_on_published_splits.py` | Floors evaluated on the published splits |
-| `second_architecture.py` | Logistic regression / gradient boosting on ECFP + ESM features |
-| `materialise_split.py` | Write a generated split to CSV |
-| `extract_drugban_published.py`, `drugban_calibration.py` | Compare against published DrugBAN results |
-| `build_ladder_table.py`, `make_supplement_tables.py`, `make_figure1.py`, `make_graphical_abstract.py` | Tables and figures from `runs/` |
+| Train the model (any ablation arm) | `python -m pharmunit.train --tag full --seeds 0 1 2` |
+| Dataset descriptives, entity-class purity, identity lookups, the reference under both constructions, all benchmark–protocol cells | `python scripts/entity_purity.py` |
+| Same, at other smoothing weights | `python scripts/entity_purity.py --pseudo-count 1 --out runs/entity_purity_k1.json` |
+| Edge-prior domain and evaluability | `python scripts/edge_prior_comparison.py` |
+| Edge-prior invariants (degree and edge-count preservation) | `python scripts/edge_prior_comparison.py --self-test` |
+| Edge-prior domain on the benchmarks' own supplied split files | `python scripts/published_split_audit.py` |
+| Per-seed trivial floors (no-molecule baselines) | `python scripts/floors.py --dataset human --split-mode cold_pair` |
+| Model-versus-reference margins with per-cell intervals | `python scripts/build_ladder_table.py` |
+| Smoothing-weight sensitivity and the matched contrasts | `python scripts/smoothing_sensitivity.py` |
+| Second-architecture check (logistic regression, gradient-boosted trees, ESM-MLP) | `python scripts/second_architecture.py` |
+| *C. elegans* dataset construction from the distributed files | `python scripts/make_celegans_dataset.py` |
+| ESM-2 embedding cache (the only GPU-bound step) | `python scripts/precompute_esm.py --pair-file ... --out-dir cache/esm` |
+| Figure 1: purity beside lookup AUROC | `python scripts/make_figure1.py` |
+| Figure 2: model-reference margin forest plot | `python scripts/make_figure2.py` |
+| Graphical abstract | `python scripts/make_graphical_abstract.py` |
+| Supplementary LaTeX tables | `python scripts/make_supplement_tables.py` |
 
-The table and figure scripts read outputs of the training runs and the analysis
-scripts above, so run those first.
+Tests: `python -m pytest tests/`
 
-## Tests
+## Layout
 
-```bash
-python -m pytest -q
+```
+pharmunit/    package: config, data loading, splits, features, model, training
+scripts/      analysis and reproduction scripts (see table above)
+tests/        pytest suite
 ```
 
-Tests that need `datasets/human` are skipped when the data is not present.
+## What is deliberately not in this repository
 
-## Reproducibility
-
-Seeds are fixed and cuDNN runs in deterministic mode. GPU kernels are still not
-guaranteed to be bitwise reproducible, so expect small run-to-run differences.
+- **`cache/esm/`** — ~4.6 GB of per-residue ESM-2 embeddings, one `.npy` per
+  protein sequence keyed by SHA-1 of the sequence. Rebuild with
+  `scripts/precompute_esm.py`.
+- **`runs/`** — per-seed run artifacts (`metrics.json`, `history.csv`,
+  `best.pt`, `split_report.txt`). Every table in the manuscript is regenerated
+  from these by the scripts above; no number is typed by hand.
+- **`datasets/`, `data_raw/`** — third-party benchmark data, versioned in this
+  repository; see "Data provenance" above.

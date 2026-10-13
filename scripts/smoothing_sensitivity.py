@@ -11,27 +11,28 @@ K_FILES = {1.0: "entity_purity_k1.json", 5.0: "entity_purity.json", 20.0: "entit
 
 CONTRASTS = [
     ("BioSNAP random vs cold-drug", "biosnap",
-     "biosnap/random", "bs_random", "biosnap/cold_drug", "bs_cold_drug", [0, 1, 2, 3, 4]),
+     "biosnap/random", None, "biosnap/cold_drug", None, [0, 1, 2, 3, 4]),
     ("C. elegans random vs cold-target", "celegans",
-     "celegans/random", "ce_random", "celegans/cold_target", "ce_cold_target", [0, 1, 2, 3, 4]),
+     "celegans/random", None, "celegans/cold_target", None, [0, 1, 2, 3, 4]),
     ("Human cold-drug vs cold-target", "human",
-     "human/cold_drug", "recursive_cd", "human/cold_target", "recursive_ct", [0, 1, 2]),
+     "human/cold_drug", None, "human/cold_target", None, [0, 1, 2, 3, 4]),
+    ("BindingDB random vs cold-drug", "bindingdb",
+     "bindingdb/random", None, "bindingdb/cold_drug", None, [0, 1, 2, 3, 4]),
 ]
 SELECTION_THRESHOLD = 0.03
 
-
 def model_auroc(tag: str, seed: int) -> float | None:
+    if tag is None:
+        return None
     f = RUNS / tag / f"seed{seed}" / "metrics.json"
     if not f.exists():
         return None
     m = json.loads(f.read_text(encoding="utf-8"))
     return float(m["test"]["auroc"])
 
-
 def references(payload: dict, cell: str) -> dict[int, float]:
     rows = payload.get("cells", {}).get(cell, [])
     return {int(r["seed"]): float(r["val_fixed"]) for r in rows if r.get("val_fixed") is not None}
-
 
 def paired(diffs: np.ndarray) -> dict:
     n = len(diffs)
@@ -49,7 +50,6 @@ def paired(diffs: np.ndarray) -> dict:
     return {"n": n, "mean": mean, "lo": mean - tcrit * se, "hi": mean + tcrit * se,
             "p": float(p), "wilcoxon": w}
 
-
 def welch(a: np.ndarray, b: np.ndarray) -> dict:
     if len(a) < 2 or len(b) < 2:
         return {"welch_lo": float("nan"), "welch_hi": float("nan"),
@@ -63,7 +63,6 @@ def welch(a: np.ndarray, b: np.ndarray) -> dict:
     return {"welch_lo": diff - tcrit * se, "welch_hi": diff + tcrit * se,
             "welch_p": p, "welch_df": df}
 
-
 def holm(pvals: list[float]) -> list[float]:
     order = sorted(range(len(pvals)), key=lambda i: pvals[i])
     adj, running = [0.0] * len(pvals), 0.0
@@ -71,7 +70,6 @@ def holm(pvals: list[float]) -> list[float]:
         running = max(running, min(1.0, (len(pvals) - rank) * pvals[i]))
         adj[i] = running
     return adj
-
 
 def main() -> None:
     payloads = {}
@@ -125,7 +123,7 @@ def main() -> None:
         out["contrasts"][label] = rows
         print()
 
-    print("Welch (primary) and Holm-adjusted p across the three contrasts, per k")
+    print(f"Welch (primary) and Holm-adjusted p across the {len(CONTRASTS)} contrasts, per k")
     labels = list(out["contrasts"])
     for k in sorted(payloads):
         rows_k = [next((r for r in out["contrasts"][lab] if r["k"] == k), None) for lab in labels]
@@ -147,7 +145,6 @@ def main() -> None:
     f = RUNS / "smoothing_sensitivity.json"
     f.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print(f"\nwrote {f}")
-
 
 if __name__ == "__main__":
     main()

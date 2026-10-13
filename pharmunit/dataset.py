@@ -12,7 +12,6 @@ from torch.utils.data import Dataset
 from .drug_features import DrugFeatures, featurize_drug, atom_feature_dim
 from .protein_features import ProteinFeatures, featurize_protein
 
-
 def load_pair_csv(path: str | Path) -> pd.DataFrame:
     df = pd.read_csv(path)
     lookup = {c.lower(): c for c in df.columns}
@@ -27,11 +26,6 @@ def load_pair_csv(path: str | Path) -> pd.DataFrame:
     out["label"] = out["label"].astype(int)
     return out.reset_index(drop=True)
 
-
-def load_pairs(path: str | Path) -> pd.DataFrame:
-    return load_pair_csv(path) if str(path).lower().endswith(".csv") else load_pair_txt(path)
-
-
 def load_pair_txt(path: str | Path) -> pd.DataFrame:
     rows = []
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
@@ -45,9 +39,10 @@ def load_pair_txt(path: str | Path) -> pd.DataFrame:
             except ValueError:
                 continue
             rows.append((smiles, seq, y))
-    df = pd.DataFrame(rows, columns=["drug", "target", "label"])
-    return df
+    return pd.DataFrame(rows, columns=["drug", "target", "label"])
 
+def load_pairs(path: str | Path) -> pd.DataFrame:
+    return load_pair_csv(path) if str(path).lower().endswith(".csv") else load_pair_txt(path)
 
 @dataclass
 class Sample:
@@ -55,8 +50,8 @@ class Sample:
     protein: ProteinFeatures
     label: float
 
-
 class DTIDataset(Dataset):
+
     def __init__(
         self,
         df: pd.DataFrame,
@@ -78,7 +73,8 @@ class DTIDataset(Dataset):
         keep = []
         for i, s in enumerate(self.df["drug"].tolist()):
             if s in self.drug_cache:
-                keep.append(i); continue
+                keep.append(i)
+                continue
             df_feat = featurize_drug(s)
             if df_feat is not None:
                 self.drug_cache[s] = df_feat
@@ -104,7 +100,6 @@ class DTIDataset(Dataset):
             self.protein_cache[seq] = prot
         return Sample(drug=drug, protein=prot, label=label)
 
-
 @dataclass
 class Batch:
     atom_x: torch.Tensor
@@ -121,7 +116,6 @@ class Batch:
     seg_size: torch.Tensor
     y: torch.Tensor
 
-
 def _pad_stack(arrays: list[np.ndarray], pad_to: int, pad_value=0) -> np.ndarray:
     B = len(arrays)
     tail = arrays[0].shape[1:]
@@ -129,7 +123,6 @@ def _pad_stack(arrays: list[np.ndarray], pad_to: int, pad_value=0) -> np.ndarray
     for i, a in enumerate(arrays):
         out[i, : a.shape[0]] = a
     return out
-
 
 def _pad_adj(adjs: list[np.ndarray], pad_to: int) -> np.ndarray:
     B = len(adjs)
@@ -139,8 +132,8 @@ def _pad_adj(adjs: list[np.ndarray], pad_to: int) -> np.ndarray:
         out[i, :n, :n] = a
     return out
 
-
 def make_collate(segment_len: int) -> Callable[[list[Sample]], Batch]:
+
     def collate(samples: list[Sample]) -> Batch:
         n_atoms = [s.drug.n_atoms for s in samples]
         n_units = [s.drug.n_units for s in samples]
@@ -203,7 +196,6 @@ def make_collate(segment_len: int) -> Callable[[list[Sample]], Batch]:
         )
 
     return collate
-
 
 def infer_atom_dim() -> int:
     return atom_feature_dim()

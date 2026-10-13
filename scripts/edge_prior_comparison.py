@@ -18,34 +18,41 @@ from pharmunit.data import prepare_splits
 
 PSEUDO = 5.0
 
-
 def xswap_edge_prior(edges, test_pairs, n_perm, swaps_per_edge, rng):
     edge_set = set(edges)
-    counts = Counter()
-    test_set = set(test_pairs)
     n_swaps = int(swaps_per_edge * len(edges))
+    start = sorted(edge_set)
+    drug_id = {d: k for k, d in enumerate(sorted({d for d, _ in start}))}
+    target_id = {t: k for k, t in enumerate(sorted({t for _, t in start}))}
+    n_t = len(target_id)
+    start_d = [drug_id[d] for d, _ in start]
+    start_t = [target_id[t] for _, t in start]
+    start_keys = {d * n_t + t for d, t in zip(start_d, start_t)}
+    test_key = {p: drug_id[p[0]] * n_t + target_id[p[1]]
+                for p in test_pairs if p[0] in drug_id and p[1] in target_id}
+    wanted = set(test_key.values())
+    counts = Counter()
+    m = len(start)
 
     for _ in range(n_perm):
-        cur = list(edge_set)
-        cur_set = set(cur)
-        for _ in range(n_swaps):
-            i, j = rng.integers(0, len(cur), 2)
+        cur_t = list(start_t)
+        cur = set(start_keys)
+        for i, j in rng.integers(0, m, size=(n_swaps, 2)).tolist():
             if i == j:
                 continue
-            (d1, t1), (d2, t2) = cur[i], cur[j]
+            d1, t1, d2, t2 = start_d[i], cur_t[i], start_d[j], cur_t[j]
             if d1 == d2 or t1 == t2:
                 continue
-            a, b = (d1, t2), (d2, t1)
-            if a in cur_set or b in cur_set:
+            a, b = d1 * n_t + t2, d2 * n_t + t1
+            if a in cur or b in cur:
                 continue
-            cur_set.discard((d1, t1)); cur_set.discard((d2, t2))
-            cur_set.add(a); cur_set.add(b)
-            cur[i], cur[j] = a, b
-        for p in cur_set & test_set:
-            counts[p] += 1
+            cur.discard(d1 * n_t + t1); cur.discard(d2 * n_t + t2)
+            cur.add(a); cur.add(b)
+            cur_t[i], cur_t[j] = t2, t1
+        for k in cur & wanted:
+            counts[k] += 1
 
-    return {p: counts[p] / n_perm for p in test_pairs}
-
+    return {p: (counts[test_key[p]] / n_perm if p in test_key else 0.0) for p in test_pairs}
 
 def entity_frequency_reference(train, test):
     prior = float(train["label"].mean())
@@ -59,7 +66,6 @@ def entity_frequency_reference(train, test):
             a = roc_auc_score(y, s)
             best = max(best, a, 1 - a)
     return best
-
 
 def run_cell(dataset, split_mode, seed, n_perm, swaps_per_edge):
     root = Path("datasets") / dataset / "random"
@@ -95,8 +101,12 @@ def run_cell(dataset, split_mode, seed, n_perm, swaps_per_edge):
         else:
             a = roc_auc_score(y, ep)
             out["edge_prior_auroc"] = round(float(max(a, 1 - a)), 4)
+            out["edge_prior_auroc_raw"] = round(float(a), 4)
             out["edge_prior_degenerate"] = False
         out["entity_freq_auroc"] = round(entity_frequency_reference(train, test), 4)
+        a_tb = roc_auc_score(y, ep + 1e-12 * scoreable)
+        out["edge_prior_auroc_tiebroken"] = round(float(max(a_tb, 1 - a_tb)), 4)
+        out["edge_prior_auroc_tiebroken_raw"] = round(float(a_tb), 4)
 
     ys, eps = y[scoreable], ep[scoreable]
     out["n_scoreable"] = int(scoreable.sum())
@@ -104,6 +114,7 @@ def run_cell(dataset, split_mode, seed, n_perm, swaps_per_edge):
     if len(ys) and len(set(ys)) > 1 and not np.allclose(eps, eps[0]):
         a_r = roc_auc_score(ys, eps)
         out["edge_prior_auroc_restricted"] = round(float(max(a_r, 1 - a_r)), 4)
+        out["edge_prior_auroc_restricted_raw"] = round(float(a_r), 4)
     else:
         out["edge_prior_auroc_restricted"] = None
         out["restricted_undefined_reason"] = (
@@ -111,7 +122,6 @@ def run_cell(dataset, split_mode, seed, n_perm, swaps_per_edge):
             "single class in scoreable subset" if len(set(ys)) <= 1 else
             "constant prior on scoreable subset")
     return out
-
 
 def self_test():
     rng = np.random.default_rng(0)
@@ -135,7 +145,6 @@ def self_test():
     print(f"  edge count preserved:     {len(cur) == len(edges)}")
     return d0 == d1 and t0 == t1 and len(cur) == len(edges)
 
-
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -144,7 +153,7 @@ def main() -> None:
     ap.add_argument("--split-modes", nargs="+",
                     default=["random", "cold_drug", "cold_target", "cold_pair"])
     ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
-    ap.add_argument("--permutations", type=int, default=50)
+    ap.add_argument("--permutations", type=int, default=1000)
     ap.add_argument("--swaps-per-edge", type=float, default=10.0)
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--out", default="runs/edge_prior_comparison.json")
@@ -182,6 +191,12 @@ def main() -> None:
                        "edge_prior_auroc_restricted": (
                            round(float(np.mean(restricted)), 4) if restricted else None),
                        "n_seeds_restricted_defined": len(restricted)}
+        tb = [r["edge_prior_auroc_tiebroken"] for r in rows if r.get("edge_prior_auroc_tiebroken") is not None]
+        if tb:
+            results[sm]["edge_prior_auroc_tiebroken"] = round(float(np.mean(tb)), 4)
+        tb_raw = [r["edge_prior_auroc_tiebroken_raw"] for r in rows if "edge_prior_auroc_tiebroken_raw" in r]
+        if tb_raw and len(tb_raw) == len(rows):
+            results[sm]["edge_prior_auroc_tiebroken_raw"] = round(float(np.mean(tb_raw)), 4)
         if restricted:
             print(f"{'':<13}{'':>11}{'restricted':>12}"
                   f"{np.mean(restricted):>13.4f}   "
@@ -193,7 +208,6 @@ def main() -> None:
                           "swaps_per_edge": a.swaps_per_edge, "protocols": results}
     out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     print(f"\nwrote {out}")
-
 
 if __name__ == "__main__":
     main()

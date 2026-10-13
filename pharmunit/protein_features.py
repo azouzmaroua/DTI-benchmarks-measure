@@ -7,11 +7,9 @@ from typing import Optional
 
 import numpy as np
 
-
 def sequence_hash(seq: str) -> str:
     seq = seq.strip().upper().replace(" ", "").replace("\n", "")
     return hashlib.sha1(seq.encode("ascii", errors="replace")).hexdigest()
-
 
 @dataclass
 class ProteinFeatures:
@@ -19,7 +17,6 @@ class ProteinFeatures:
     residue_emb: np.ndarray
     pocket_prob: np.ndarray
     length: int
-
 
 def load_esm_embedding(seq: str, cache_dir: Path, esm_dim: int) -> np.ndarray:
     key = sequence_hash(seq)
@@ -36,7 +33,6 @@ def load_esm_embedding(seq: str, cache_dir: Path, esm_dim: int) -> np.ndarray:
         )
     return arr.astype(np.float32)
 
-
 def load_pocket_probability(
     seq: str,
     cache_dir: Optional[Path],
@@ -48,7 +44,6 @@ def load_pocket_probability(
         return None
     arr = np.load(fp).astype(np.float32).reshape(-1)
     return np.clip(arr, 0.0, 1.0)
-
 
 def featurize_protein(
     seq: str,

@@ -15,10 +15,10 @@ DEFAULT_MANIFEST = {
                "cell, or null if not yet run. Add a tag here the moment a run "
                "completes, then rerun this script -- do not hand-type the result "
                "into the manuscript instead.",
-    "biosnap/cold_pair": "bs_recursive",
+    "biosnap/cold_pair": None,
     "biosnap/cold_target": None,
     "biosnap/cold_drug": None,
-    "biosnap/random": "bs_random",
+    "biosnap/random": None,
     "human/cold_pair": None,
     "human/cold_drug": None,
     "human/cold_target": None,
@@ -27,8 +27,11 @@ DEFAULT_MANIFEST = {
     "bindingdb/cold_target": None,
     "bindingdb/cold_drug": None,
     "bindingdb/random": None,
+    "celegans/cold_pair": None,
+    "celegans/cold_target": None,
+    "celegans/cold_drug": None,
+    "celegans/random": None,
 }
-
 
 def load_manifest() -> dict:
     if not MANIFEST_PATH.exists():
@@ -37,14 +40,12 @@ def load_manifest() -> dict:
         print(f"wrote default manifest to {MANIFEST_PATH} -- edit it to add tags, then rerun")
     return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
 
-
 def load_floor(dataset: str, split_mode: str) -> dict[int, float] | None:
     fp = ROOT / "runs" / "floors" / f"{dataset}_random_{split_mode}.json"
     if not fp.exists():
         return None
     j = json.loads(fp.read_text(encoding="utf-8"))
     return {int(k): v["floor"] for k, v in j["per_seed"].items() if "floor" in v}
-
 
 def load_model(tag: str) -> dict[int, float]:
     out: dict[int, float] = {}
@@ -60,11 +61,10 @@ def load_model(tag: str) -> dict[int, float]:
         out[seed] = m["test"]["auroc"]
     return out
 
-
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default=str(ROOT / "paper" / "table1_generated.md"))
+    ap.add_argument("--out", default=str(ROOT / "runs" / "table_model_vs_floor.md"))
     a = ap.parse_args()
 
     manifest = load_manifest()
@@ -92,15 +92,15 @@ def main() -> None:
         floor_mean = float(np.mean([floors[s] for s in common]))
         model_mean = float(np.mean([models[s] for s in common]))
         row = {"dataset": dataset, "protocol": split_mode, "tag": tag,
-              "n_seeds": len(common), "seeds": common,
-              "floor_mean": round(floor_mean, 4), "model_mean": round(model_mean, 4),
-              "margin_mean": round(float(margins.mean()), 4)}
+               "n_seeds": len(common), "seeds": common,
+               "floor_mean": round(floor_mean, 4), "model_mean": round(model_mean, 4),
+               "margin_mean": round(float(margins.mean()), 4)}
         if len(common) > 1:
             _, p = stats.ttest_1samp(margins, 0.0)
             ci = stats.t.interval(0.95, len(common) - 1, loc=margins.mean(),
                                   scale=stats.sem(margins))
             row.update(p_value=round(float(p), 5),
-                      ci95=[round(float(ci[0]), 4), round(float(ci[1]), 4)])
+                       ci95=[round(float(ci[0]), 4), round(float(ci[1]), 4)])
         rows.append(row)
         print(f"{key:<24}{tag:<16}{len(common):>3}{floor_mean:>9.4f}{model_mean:>9.4f}"
               f"{margins.mean():>+10.4f}")
@@ -117,12 +117,12 @@ def main() -> None:
         print(f"\nonly {len(rows)} complete cell(s) -- need >= 3 to fit the model-vs-floor line")
 
     md = ["| Dataset | Protocol | Floor | Model | Margin | 95% CI | n | tag |",
-         "|---|---|---:|---:|---:|---:|---:|---|"]
+          "|---|---|---:|---:|---:|---:|---:|---|"]
     for r in rows:
         ci = f"[{r['ci95'][0]:+.4f}, {r['ci95'][1]:+.4f}]" if "ci95" in r else "n/a (n=1)"
         md.append(f"| {r['dataset']} | {r['protocol']} | {r['floor_mean']:.4f} | "
-                 f"{r['model_mean']:.4f} | {r['margin_mean']:+.4f} | {ci} | "
-                 f"{r['n_seeds']} | `{r['tag']}` |")
+                  f"{r['model_mean']:.4f} | {r['margin_mean']:+.4f} | {ci} | "
+                  f"{r['n_seeds']} | `{r['tag']}` |")
     out_path = Path(a.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(md) + "\n", encoding="utf-8")
@@ -132,7 +132,6 @@ def main() -> None:
     if incomplete:
         print(f"\n{len(incomplete)} cell(s) still have no tag in the manifest: "
               f"{', '.join(incomplete)}")
-
 
 if __name__ == "__main__":
     main()

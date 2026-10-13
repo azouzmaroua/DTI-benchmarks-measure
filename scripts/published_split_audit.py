@@ -18,7 +18,6 @@ from pharmunit.data import prepare_splits
 FOLDS = ("train", "val", "test")
 RAW_STEMS = {"human": "Human", "celegans": "Celegans"}
 
-
 def _paths(dataset: str, source: str) -> dict[str, Path] | None:
     if source == "prepared":
         root = ROOT / "datasets" / dataset / "random"
@@ -29,7 +28,6 @@ def _paths(dataset: str, source: str) -> dict[str, Path] | None:
             return None
         p = {k: ROOT / "data_raw" / f"{stem}_{k}.txt" for k in FOLDS}
     return p if all(v.exists() for v in p.values()) else None
-
 
 def audit(dataset: str, source: str) -> dict | None:
     p = _paths(dataset, source)
@@ -67,7 +65,6 @@ def audit(dataset: str, source: str) -> dict | None:
         "auroc_evaluable_on_scoreable": bool(n_sc and 0 < n_pos_sc < n_sc),
         "supplied_split_leakage": report.leakage_audit,
     }
-
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
@@ -122,7 +119,6 @@ def main() -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(rows, indent=2), encoding="utf-8")
     print(f"\nwrote {out}")
-
 
 if __name__ == "__main__":
     main()

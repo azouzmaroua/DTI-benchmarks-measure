@@ -13,7 +13,6 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = [ROOT / "data_raw" / f"Celegans_{p}.txt" for p in ("train", "val", "test")]
 OUT = ROOT / "datasets" / "celegans" / "random"
 
-
 def main() -> None:
     missing = [p for p in SRC if not p.exists()]
     if missing:
@@ -47,7 +46,6 @@ def main() -> None:
     print(f"\npooled {before} rows -> {n} after dedup/contradiction removal")
     print(f"drugs {df['drug'].nunique()}  proteins {df['target'].nunique()}  "
           f"positive rate {df['label'].mean():.4f}")
-
 
 if __name__ == "__main__":
     main()

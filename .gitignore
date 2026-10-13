@@ -1,41 +1,38 @@
+# Virtual environments: machine-specific. Recreate from requirements.txt.
 .venv/
 venv/
 env/
 
+# Python bytecode and tool caches
 __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
 .ipynb_checkpoints/
 
+# ESM-2 per-residue embedding cache: ~4.6 GB of .npy files, one per protein
+# sequence, keyed by SHA-1 of the sequence. Fully regenerable:
+#     python scripts/precompute_esm.py --pair-file <files> --out-dir cache/esm
 cache/
 
-# experiment outputs, generated tables/figures, and benchmark data are not versioned
+# Run artifacts. metrics.json / history.csv are regenerable from train.py;
+# scripts write them fresh on every run. If checkpoints ever need to be
+# tracked, use git-lfs rather than committing them directly.
 runs/
-paper/
-datasets/
-data_raw/
 
+# Model checkpoints
 *.pt
 *.pth
 *.ckpt
 *.safetensors
 
+# Build and packaging
 build/
 dist/
 *.zip
 *.tar.gz
 
-*.aux
-*.bbl
-*.blg
-*.log
-*.out
-*.synctex.gz
-*.fls
-*.fdb_latexmk
-*.toc
-
+# OS and editor
 Thumbs.db
 desktop.ini
 .DS_Store

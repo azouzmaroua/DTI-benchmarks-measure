@@ -11,7 +11,6 @@ METRICS = {
     "auprc": average_precision_score,
 }
 
-
 @dataclass
 class PairedResult:
     metric: str
@@ -40,7 +39,6 @@ class PairedResult:
             f"{abs(self.diff):.4f} (95% CI [{self.ci95_low:.4f}, {self.ci95_high:.4f}], "
             f"p={self.p_value:.4g}) — {sig}"
         )
-
 
 def paired_bootstrap(
     y_true: Sequence[int],
@@ -103,7 +101,6 @@ def paired_bootstrap(
         n_pairs=n,
     )
 
-
 def holm_correct(results: list[PairedResult]) -> list[PairedResult]:
     order = sorted(range(len(results)), key=lambda i: results[i].p_value)
     m = len(results)
@@ -113,7 +110,6 @@ def holm_correct(results: list[PairedResult]) -> list[PairedResult]:
         running = max(running, adj)
         results[i].p_holm = running
     return results
-
 
 @dataclass
 class UnpairedResult:
@@ -137,7 +133,6 @@ class UnpairedResult:
             f"{self.name_a} - {self.name_b} on {self.metric}: {self.diff:+.4f} "
             f"(95% CI [{self.ci95_low:+.4f}, {self.ci95_high:+.4f}], {verdict})"
         )
-
 
 def unpaired_bootstrap_diff(
     y_a: Sequence[int], prob_a: Sequence[float],
@@ -176,7 +171,6 @@ def unpaired_bootstrap_diff(
         n_boot=int(diffs.size),
     )
 
-
 @dataclass
 class SotaAudit:
     dataset: str
@@ -196,13 +190,11 @@ class SotaAudit:
             "Do not bold this row and do not describe the gap as a margin in our favour."
         )
 
-
 def audit_sota_claim(dataset: str, metric: str, ours: float,
                      baselines: dict[str, float]) -> SotaAudit:
     beaten = {k: v for k, v in baselines.items() if v > ours}
     return SotaAudit(dataset=dataset, metric=metric, ours=ours,
                      beaten_by=beaten, ok=not beaten)
-
 
 def assert_claims(audits: list[SotaAudit], strict: bool = True) -> None:
     failed = [a for a in audits if not a.ok]

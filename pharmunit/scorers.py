@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import math
-from typing import Optional
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class DenseGCNLayer(nn.Module):
+
     def __init__(self, d_in: int, d_out: int):
         super().__init__()
         self.lin_msg = nn.Linear(d_in, d_out, bias=False)
@@ -26,8 +23,8 @@ class DenseGCNLayer(nn.Module):
         out = F.relu(self.lin_msg(agg) + self.lin_self(h))
         return out * mask.unsqueeze(-1).to(out.dtype)
 
-
 class AtomEncoder(nn.Module):
+
     def __init__(self, d_in: int, d_hidden: int, n_layers: int = 3):
         super().__init__()
         self.proj_in = nn.Linear(d_in, d_hidden)
@@ -42,14 +39,12 @@ class AtomEncoder(nn.Module):
             h = layer(h, adj, atom_mask)
         return h
 
-
 def unit_mean_pool(
     atom_h: torch.Tensor,
     unit_idx: torch.Tensor,
     U: int,
 ) -> torch.Tensor:
     B, N, D = atom_h.shape
-    device = atom_h.device
     idx_safe = unit_idx.clamp(min=0)
     valid = (unit_idx >= 0).to(atom_h.dtype).unsqueeze(-1)
     atom_h_masked = atom_h * valid
@@ -60,8 +55,8 @@ def unit_mean_pool(
     counts.scatter_add_(1, idx_safe.unsqueeze(-1), valid)
     return sums / counts.clamp(min=1.0)
 
-
 class PWIRC(nn.Module):
+
     def __init__(
         self,
         d_hidden: int,
@@ -101,8 +96,8 @@ class PWIRC(nn.Module):
         score = score.masked_fill(~unit_mask, float("-inf"))
         return unit_vec, score
 
-
 class BSIRC(nn.Module):
+
     def __init__(
         self,
         esm_dim: int,
@@ -168,7 +163,6 @@ class BSIRC(nn.Module):
         score = score.masked_fill(~seg_mask, float("-inf"))
         return seg_vec, score
 
-
 def apply_select_mode(
     scores: torch.Tensor,
     valid: torch.Tensor,
@@ -182,7 +176,6 @@ def apply_select_mode(
         return torch.rand(scores.shape, device=scores.device).masked_fill(
             ~valid, float("-inf"))
     raise ValueError(f"unknown select_mode: {mode!r}")
-
 
 def topk_gather(
     values: torch.Tensor,
@@ -217,7 +210,6 @@ def topk_gather(
 
     kept_values = kept_values * kept_mask.unsqueeze(-1).to(kept_values.dtype)
     return kept_values, kept_mask
-
 
 def token_topk_gather(
     values: torch.Tensor,

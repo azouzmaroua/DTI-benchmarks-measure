@@ -23,7 +23,6 @@ FAMILIES = ("drug", "target", "product")
 VAL_FRAC: float | None = None
 TEST_FRAC: float | None = None
 
-
 def _split_kw() -> dict:
     kw = {}
     if VAL_FRAC is not None:
@@ -32,23 +31,19 @@ def _split_kw() -> dict:
         kw["split_test_frac"] = TEST_FRAC
     return kw
 
-
 def _rate_map(train: pd.DataFrame, col: str, prior: float) -> dict:
     g = train.groupby(col)["label"].agg(["sum", "size"])
     return ((g["sum"] + prior * PSEUDO) / (g["size"] + PSEUDO)).to_dict()
-
 
 def _scores(train: pd.DataFrame, frame: pd.DataFrame, prior: float) -> dict:
     d = frame["drug"].map(_rate_map(train, "drug", prior)).fillna(prior).to_numpy()
     t = frame["target"].map(_rate_map(train, "target", prior)).fillna(prior).to_numpy()
     return {"drug": d, "target": t, "product": d * t}
 
-
 def _auroc(y: np.ndarray, s: np.ndarray) -> float | None:
     if len(set(y.tolist())) < 2 or np.allclose(s, s[0]):
         return None
     return float(roc_auc_score(y, s))
-
 
 def entity_class_purity(pool: pd.DataFrame) -> dict:
     out = {"n_rows": int(len(pool)), "pool_positive_rate": round(float(pool["label"].mean()), 4)}
@@ -61,7 +56,6 @@ def entity_class_purity(pool: pd.DataFrame) -> dict:
     out["drugs_negative_only"] = int(((g["nunique"] == 1) & (g["max"] == 0)).sum())
     out["drugs_both"] = int((g["nunique"] > 1).sum())
     return out
-
 
 def cell(dataset: str, split_mode: str, seed: int) -> dict:
     root = ROOT / "datasets" / dataset / "random"
@@ -108,7 +102,6 @@ def cell(dataset: str, split_mode: str, seed: int) -> dict:
         out["val_fixed"] = 0.5 if a_te is None else round(a_te, 4)
         out["val_fixed_choice"] = f"{fam}{'+' if sign > 0 else '-'}"
     return out
-
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
@@ -202,7 +195,6 @@ def main() -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     print(f"\nwrote {out}")
-
 
 if __name__ == "__main__":
     main()
